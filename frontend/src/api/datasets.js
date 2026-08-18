@@ -16,3 +16,16 @@ export function getDatasets() {
 export function getDataset(id) {
   return apiClient.get(`/datasets/${id}`);
 }
+
+export async function updateDatasetColumnClassification(
+  datasetId,
+  columnId,
+  sensitivityTag
+) {
+  return apiClient.patch(
+    `/datasets/${datasetId}/dataset_columns/${columnId}`,
+    {
+      sensitivity_tag: sensitivityTag,
+    }
+  );
+}
