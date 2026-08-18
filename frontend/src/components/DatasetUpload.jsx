@@ -1,53 +1,123 @@
 import { useState } from "react";
 import { uploadDataset } from "../api/datasets";
 
-function DatasetUpload() {
+function DatasetUpload({ onUploadSuccess }) {
   const [file, setFile] = useState(null);
-  const [dataset, setDataset] = useState(null);
+  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState(null);
+  const [uploadedDataset, setUploadedDataset] = useState(null);
 
-  const handleUpload = async () => {
+  function handleFileChange(event) {
+    const selectedFile = event.target.files[0];
+
+    setFile(selectedFile || null);
+    setError(null);
+    setUploadedDataset(null);
+  }
+
+  async function handleUpload(event) {
+    event.preventDefault();
+
     if (!file) {
-      setError("Please select a file");
+      setError("Please select a CSV or Excel file.");
       return;
     }
 
     try {
+      setUploading(true);
       setError(null);
+      setUploadedDataset(null);
 
       const response = await uploadDataset(file);
 
-      setDataset(response.data);
+      /*
+       * Dataset successfully created by Rails.
+       */
+      const newDataset = response.data;
+
+      /*
+       * Show successful upload information.
+       */
+      setUploadedDataset(newDataset);
+
+      /*
+       * IMPORTANT:
+       * Send the newly created dataset to the parent
+       * dashboard.
+       *
+       * The dashboard will then call GET /datasets
+       * and refresh the catalog automatically.
+       */
+      if (onUploadSuccess) {
+        await onUploadSuccess(newDataset);
+      }
+
+      /*
+       * Clear selected file.
+       */
+      setFile(null);
+
     } catch (error) {
-      setError(
-        error.response?.data?.error || "Upload failed"
+      console.error(
+        "Dataset upload failed:",
+        error
       );
+
+      setError(
+        error?.response?.data?.error ||
+        "Unable to upload dataset."
+      );
+    } finally {
+      setUploading(false);
     }
-  };
+  }
 
   return (
     <div>
       <h2>Upload Dataset</h2>
 
-      <input
-        type="file"
-        // accept=".csv,.xlsx"
-        onChange={(event) => setFile(event.target.files[0])}
-      />
+      <form onSubmit={handleUpload}>
+        <input
+          type="file"
+          accept=".csv,.xlsx"
+          onChange={handleFileChange}
+          disabled={uploading}
+        />
 
-      <button onClick={handleUpload}>
-        Upload
-      </button>
+        <button
+          type="submit"
+          disabled={!file || uploading}
+        >
+          {uploading
+            ? "Uploading..."
+            : "Upload"}
+        </button>
+      </form>
 
-      {error && <p>{error}</p>}
+      {error && (
+        <p style={{ color: "red" }}>
+          {error}
+        </p>
+      )}
 
-      {dataset && (
+      {uploadedDataset && (
         <div>
           <h3>Upload Successful</h3>
 
-          <p>Filename: {dataset.filename}</p>
-          <p>Rows: {dataset.row_count}</p>
-          <p>Columns: {dataset.column_count}</p>
+          <p>
+            Filename:{" "}
+            {uploadedDataset.filename}
+          </p>
+
+          <p>
+            Rows:{" "}
+            {uploadedDataset.row_count}
+          </p>
+
+          <p>
+            Columns:{" "}
+            {uploadedDataset.column_count}
+          </p>
         </div>
       )}
     </div>
