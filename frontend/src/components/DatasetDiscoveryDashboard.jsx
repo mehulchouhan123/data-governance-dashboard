@@ -46,7 +46,7 @@ function DatasetDiscoveryDashboard() {
 
   return (
     <div>
-      <h1>Data Discovery Dashboard</h1>
+      <h1>Data Discovery & Quality Dashboard</h1>
 
       <DatasetUpload
         onUploadSuccess={handleUploadSuccess}
@@ -82,9 +82,11 @@ function DatasetDiscoveryDashboard() {
 
 function DatasetDiscoveryCard({ dataset }) {
   /*
-   * Keep a local copy of columns so that
-   * the UI can update immediately after
-   * a manual classification change.
+   * Local copy of columns.
+   *
+   * This allows the classification override
+   * to update immediately without reloading
+   * the complete dataset list.
    */
   const [columns, setColumns] = useState(
     dataset.columns || []
@@ -96,7 +98,18 @@ function DatasetDiscoveryCard({ dataset }) {
   const [error, setError] = useState(null);
 
   /*
+   * Keep local columns synchronized if the
+   * parent receives refreshed dataset data.
+   */
+  useEffect(() => {
+    setColumns(dataset.columns || []);
+  }, [dataset.columns]);
+
+  /*
+   * ------------------------------------------
+   * PHASE 4
    * Manual classification override
+   * ------------------------------------------
    */
   async function handleClassificationChange(
     columnId,
@@ -140,36 +153,119 @@ function DatasetDiscoveryCard({ dataset }) {
   }
 
   return (
-    <div>
+    <div
+      style={{
+        marginBottom: "40px",
+      }}
+    >
       <hr />
 
       <h2>{dataset.filename}</h2>
 
       <p>
         File Type:{" "}
-        {dataset.file_type.toUpperCase()}
+        {dataset.file_type
+          ? dataset.file_type.toUpperCase()
+          : "-"}
       </p>
 
       <p>
         Uploaded:{" "}
-        {new Date(
-          dataset.uploaded_at
-        ).toLocaleString()}
+        {dataset.uploaded_at
+          ? new Date(
+              dataset.uploaded_at
+            ).toLocaleString()
+          : "-"}
       </p>
 
       <p>
         <strong>
-          {dataset.row_count}
+          {dataset.row_count ?? 0}
         </strong>{" "}
         Rows
       </p>
 
       <p>
         <strong>
-          {dataset.column_count}
+          {dataset.column_count ?? 0}
         </strong>{" "}
         Columns
       </p>
+
+      {/* =====================================
+          PHASE 5 - DATA QUALITY SUMMARY
+          ===================================== */}
+
+      <h3>Data Quality</h3>
+
+      <div
+        style={{
+          display: "flex",
+          gap: "20px",
+          flexWrap: "wrap",
+          marginBottom: "20px",
+        }}
+      >
+        {/* Quality Score */}
+        <QualityMetricCard
+          title="Quality Score"
+          value={
+            dataset.quality_score != null
+              ? `${Number(
+                  dataset.quality_score
+                ).toFixed(2)}%`
+              : "N/A"
+          }
+          type="score"
+          score={dataset.quality_score}
+        />
+
+        {/* Duplicate Rows */}
+        <QualityMetricCard
+          title="Duplicate Rows"
+          value={
+            dataset.duplicate_row_count ?? 0
+          }
+          type="duplicate"
+        />
+
+        {/* Invalid Values */}
+        <QualityMetricCard
+          title="Invalid Values"
+          value={
+            dataset.invalid_value_count ?? 0
+          }
+          type="invalid"
+        />
+      </div>
+
+      <p
+        style={{
+          color: "#666",
+          marginBottom: "20px",
+        }}
+      >
+        Quality is calculated using missing
+        values, duplicate rows, and invalid
+        values.
+      </p>
+
+      {/* Quality status */}
+      {dataset.quality_score != null && (
+        <div
+          style={{
+            marginBottom: "20px",
+          }}
+        >
+          <strong>
+            Quality Status:{" "}
+          </strong>
+
+          <QualityStatusBadge
+            score={dataset.quality_score}
+          />
+        </div>
+      )}
 
       <h3>
         Discovered & Classified Columns
@@ -181,107 +277,470 @@ function DatasetDiscoveryCard({ dataset }) {
         </p>
       )}
 
-      <table>
-        <thead>
-          <tr>
-            <th>Position</th>
-            <th>Column Name</th>
-            <th>Data Type</th>
-            <th>Sensitivity Tag</th>
-            <th>Classification Source</th>
-            <th>Override</th>
-          </tr>
-        </thead>
+      <div
+        style={{
+          overflowX: "auto",
+        }}
+      >
+        <table
+          style={{
+            width: "100%",
+            borderCollapse: "collapse",
+          }}
+        >
+          <thead>
+            <tr>
+              <th style={tableHeaderStyle}>
+                Position
+              </th>
 
-        <tbody>
-          {columns.map((column) => (
-            <tr key={column.id}>
-              <td>
-                {column.position + 1}
-              </td>
+              <th style={tableHeaderStyle}>
+                Column Name
+              </th>
 
-              <td>
-                {column.name}
-              </td>
+              <th style={tableHeaderStyle}>
+                Data Type
+              </th>
 
-              <td>
-                {column.data_type}
-              </td>
+              {/* PHASE 5 */}
+              <th style={tableHeaderStyle}>
+                Missing
+              </th>
 
-              <td>
-                <ClassificationBadge
-                  tag={
-                    column.sensitivity_tag
-                  }
-                />
-              </td>
+              {/* PHASE 5 */}
+              <th style={tableHeaderStyle}>
+                Missing %
+              </th>
 
-              <td>
-                <ClassificationSource
-                  source={
-                    column.classification_source
-                  }
-                />
-              </td>
+              {/* PHASE 5 */}
+              <th style={tableHeaderStyle}>
+                Invalid
+              </th>
 
-              <td>
-                <select
-                  value={
-                    column.sensitivity_tag || ""
-                  }
-                  disabled={
-                    updatingColumnId ===
-                    column.id
-                  }
-                  onChange={(event) =>
-                    handleClassificationChange(
-                      column.id,
-                      event.target.value
-                    )
-                  }
-                >
-                  <option
-                    value=""
-                    disabled
-                  >
-                    Select tag
-                  </option>
+              {/* PHASE 4 */}
+              <th style={tableHeaderStyle}>
+                Sensitivity Tag
+              </th>
 
-                  {CLASSIFICATION_LEVELS.map(
-                    (level) => (
-                      <option
-                        key={level}
-                        value={level}
-                      >
-                        {level}
-                      </option>
-                    )
-                  )}
-                </select>
+              {/* PHASE 4 */}
+              <th style={tableHeaderStyle}>
+                Classification Source
+              </th>
 
-                {updatingColumnId ===
-                  column.id && (
-                  <span>
-                    {" "}
-                    Updating...
-                  </span>
-                )}
-              </td>
+              {/* PHASE 4 */}
+              <th style={tableHeaderStyle}>
+                Override
+              </th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+
+          <tbody>
+            {columns.map((column) => (
+              <tr key={column.id}>
+                <td style={tableCellStyle}>
+                  {column.position + 1}
+                </td>
+
+                <td style={tableCellStyle}>
+                  {column.name}
+                </td>
+
+                <td style={tableCellStyle}>
+                  {column.data_type}
+                </td>
+
+                {/* ==========================
+                    PHASE 5
+                    Missing Count
+                    ========================== */}
+                <td style={tableCellStyle}>
+                  <MissingValueBadge
+                    count={
+                      column.missing_count
+                    }
+                  />
+                </td>
+
+                {/* ==========================
+                    PHASE 5
+                    Missing Percentage
+                    ========================== */}
+                <td style={tableCellStyle}>
+                  <MissingPercentageBadge
+                    percentage={
+                      column.missing_percentage
+                    }
+                  />
+                </td>
+
+                {/* ==========================
+                    PHASE 5
+                    Invalid Count
+                    ========================== */}
+                <td style={tableCellStyle}>
+                  <InvalidValueBadge
+                    count={
+                      column.invalid_count
+                    }
+                  />
+                </td>
+
+                {/* ==========================
+                    PHASE 4
+                    Sensitivity Tag
+                    ========================== */}
+                <td style={tableCellStyle}>
+                  <ClassificationBadge
+                    tag={
+                      column.sensitivity_tag
+                    }
+                  />
+                </td>
+
+                {/* ==========================
+                    PHASE 4
+                    Classification Source
+                    ========================== */}
+                <td style={tableCellStyle}>
+                  <ClassificationSource
+                    source={
+                      column.classification_source
+                    }
+                  />
+                </td>
+
+                {/* ==========================
+                    PHASE 4
+                    Manual Override
+                    ========================== */}
+                <td style={tableCellStyle}>
+                  <select
+                    value={
+                      column.sensitivity_tag || ""
+                    }
+                    disabled={
+                      updatingColumnId ===
+                      column.id
+                    }
+                    onChange={(event) =>
+                      handleClassificationChange(
+                        column.id,
+                        event.target.value
+                      )
+                    }
+                  >
+                    <option
+                      value=""
+                      disabled
+                    >
+                      Select tag
+                    </option>
+
+                    {CLASSIFICATION_LEVELS.map(
+                      (level) => (
+                        <option
+                          key={level}
+                          value={level}
+                        >
+                          {level}
+                        </option>
+                      )
+                    )}
+                  </select>
+
+                  {updatingColumnId ===
+                    column.id && (
+                    <span
+                      style={{
+                        marginLeft: "8px",
+                        color: "#666",
+                      }}
+                    >
+                      Updating...
+                    </span>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
 
 /*
+ * ============================================
+ * PHASE 5
+ * Quality Metric Card
+ * ============================================
+ */
+function QualityMetricCard({
+  title,
+  value,
+  type,
+  score,
+}) {
+  let background = "#f8fafc";
+  let border = "#e2e8f0";
+
+  if (type === "score" && score != null) {
+    if (score >= 90) {
+      background = "#f0fdf4";
+      border = "#bbf7d0";
+    } else if (score >= 70) {
+      background = "#fffbeb";
+      border = "#fde68a";
+    } else {
+      background = "#fef2f2";
+      border = "#fecaca";
+    }
+  }
+
+  if (type === "duplicate" && value > 0) {
+    background = "#fff7ed";
+    border = "#fed7aa";
+  }
+
+  if (type === "invalid" && value > 0) {
+    background = "#fef2f2";
+    border = "#fecaca";
+  }
+
+  return (
+    <div
+      style={{
+        minWidth: "180px",
+        padding: "16px",
+        borderRadius: "10px",
+        border: `1px solid ${border}`,
+        backgroundColor: background,
+      }}
+    >
+      <div
+        style={{
+          fontSize: "13px",
+          color: "#64748b",
+          marginBottom: "8px",
+        }}
+      >
+        {title}
+      </div>
+
+      <div
+        style={{
+          fontSize: "24px",
+          fontWeight: "700",
+        }}
+      >
+        {value}
+      </div>
+    </div>
+  );
+}
+
+/*
+ * ============================================
+ * PHASE 5
+ * Overall quality status
+ * ============================================
+ */
+function QualityStatusBadge({ score }) {
+  if (score == null) {
+    return (
+      <span
+        style={{
+          ...qualityBadgeBaseStyle,
+          backgroundColor: "#e5e7eb",
+          color: "#374151",
+        }}
+      >
+        NOT CALCULATED
+      </span>
+    );
+  }
+
+  if (score >= 90) {
+    return (
+      <span
+        style={{
+          ...qualityBadgeBaseStyle,
+          backgroundColor: "#dcfce7",
+          color: "#166534",
+        }}
+      >
+        EXCELLENT
+      </span>
+    );
+  }
+
+  if (score >= 70) {
+    return (
+      <span
+        style={{
+          ...qualityBadgeBaseStyle,
+          backgroundColor: "#fef3c7",
+          color: "#92400e",
+        }}
+      >
+        NEEDS REVIEW
+      </span>
+    );
+  }
+
+  return (
+    <span
+      style={{
+        ...qualityBadgeBaseStyle,
+        backgroundColor: "#fee2e2",
+        color: "#991b1b",
+      }}
+    >
+      POOR
+    </span>
+  );
+}
+
+/*
+ * ============================================
+ * PHASE 5
+ * Missing count badge
+ * ============================================
+ */
+function MissingValueBadge({ count }) {
+  const value = count ?? 0;
+
+  if (value === 0) {
+    return (
+      <span
+        style={{
+          ...qualityBadgeBaseStyle,
+          backgroundColor: "#dcfce7",
+          color: "#166534",
+        }}
+      >
+        0
+      </span>
+    );
+  }
+
+  return (
+    <span
+      style={{
+        ...qualityBadgeBaseStyle,
+        backgroundColor: "#fef3c7",
+        color: "#92400e",
+      }}
+    >
+      {value}
+    </span>
+  );
+}
+
+/*
+ * ============================================
+ * PHASE 5
+ * Missing percentage badge
+ * ============================================
+ */
+function MissingPercentageBadge({
+  percentage,
+}) {
+  const value = Number(percentage ?? 0);
+
+  if (value === 0) {
+    return (
+      <span
+        style={{
+          ...qualityBadgeBaseStyle,
+          backgroundColor: "#dcfce7",
+          color: "#166534",
+        }}
+      >
+        0%
+      </span>
+    );
+  }
+
+  if (value < 10) {
+    return (
+      <span
+        style={{
+          ...qualityBadgeBaseStyle,
+          backgroundColor: "#fef3c7",
+          color: "#92400e",
+        }}
+      >
+        {value.toFixed(2)}%
+      </span>
+    );
+  }
+
+  return (
+    <span
+      style={{
+        ...qualityBadgeBaseStyle,
+        backgroundColor: "#fee2e2",
+        color: "#991b1b",
+      }}
+    >
+      {value.toFixed(2)}%
+    </span>
+  );
+}
+
+/*
+ * ============================================
+ * PHASE 5
+ * Invalid value badge
+ * ============================================
+ */
+function InvalidValueBadge({ count }) {
+  const value = count ?? 0;
+
+  if (value === 0) {
+    return (
+      <span
+        style={{
+          ...qualityBadgeBaseStyle,
+          backgroundColor: "#dcfce7",
+          color: "#166534",
+        }}
+      >
+        0
+      </span>
+    );
+  }
+
+  return (
+    <span
+      style={{
+        ...qualityBadgeBaseStyle,
+        backgroundColor: "#fee2e2",
+        color: "#991b1b",
+      }}
+    >
+      {value}
+    </span>
+  );
+}
+
+/*
+ * ============================================
+ * PHASE 4
  * Sensitivity tag UI
+ * ============================================
  */
 function ClassificationBadge({ tag }) {
   if (!tag) {
     return (
-      <span>
+      <span
+        style={{
+          ...qualityBadgeBaseStyle,
+          backgroundColor: "#e5e7eb",
+          color: "#374151",
+        }}
+      >
         UNCLASSIFIED
       </span>
     );
@@ -309,7 +768,10 @@ function ClassificationBadge({ tag }) {
 }
 
 /*
+ * ============================================
+ * PHASE 4
  * AUTO / MANUAL source UI
+ * ============================================
  */
 function ClassificationSource({ source }) {
   if (!source) {
@@ -338,13 +800,18 @@ function ClassificationSource({ source }) {
           : "#0369a1",
       }}
     >
-      {isManual ? "MANUAL" : "AUTO"}
+      {isManual
+        ? "MANUAL"
+        : "AUTO"}
     </span>
   );
 }
 
 /*
- * Colors for each sensitivity level
+ * ============================================
+ * PHASE 4
+ * Classification colors
+ * ============================================
  */
 function getClassificationColors(tag) {
   switch (tag) {
@@ -379,5 +846,32 @@ function getClassificationColors(tag) {
       };
   }
 }
+
+/*
+ * ============================================
+ * Shared styles
+ * ============================================
+ */
+
+const tableHeaderStyle = {
+  border: "1px solid #ddd",
+  padding: "10px",
+  backgroundColor: "#f5f5f5",
+  textAlign: "left",
+};
+
+const tableCellStyle = {
+  border: "1px solid #ddd",
+  padding: "10px",
+  verticalAlign: "middle",
+};
+
+const qualityBadgeBaseStyle = {
+  display: "inline-block",
+  padding: "4px 9px",
+  borderRadius: "999px",
+  fontSize: "12px",
+  fontWeight: "600",
+};
 
 export default DatasetDiscoveryDashboard;
