@@ -1,0 +1,13 @@
+# Read about fixtures at https://api.rubyonrails.org/classes/ActiveRecord/FixtureSet.html
+
+one:
+  dataset: one
+  name: MyString
+  data_type: MyString
+  position: 1
+
+two:
+  dataset: two
+  name: MyString
+  data_type: MyString
+  position: 1

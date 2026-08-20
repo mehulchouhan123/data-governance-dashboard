@@ -1,0 +1,4 @@
+name,email,age,phone,joined_at
+John Doe,john@example.com,25,9876543210,2026-01-10
+Sarah Smith,sarah@example.com,31,9123456780,2026-02-15
+David Brown,,28,9988776655,2026-03-20
